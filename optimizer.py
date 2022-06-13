@@ -76,7 +76,7 @@ class Optimizer:
         best = (float('inf'), None, None)
 
         for i, tup in enumerate(cartesian_product):
-            if i % 10 == 0:
+            if i % 25 == 0:
                 print('starting trial', i)
 
             # Configure a new set of params at each point
@@ -88,7 +88,7 @@ class Optimizer:
 
             # print(params)
             loss, model = self.run_experiment(params)
-            losses.append(math.log(loss.item()))
+            losses.append(math.log(abs(loss.item()) + 1e-7))
             if loss < best[0]:
                 best = (loss, model, params)
 
@@ -108,7 +108,7 @@ class Optimizer:
         print(f'Random searching through {trials} input points')
         for i in range(trials):
 
-            if i % 10 == 0:
+            if i % 25 == 0:
                 print('starting trial', i)
             # configure a set of params from random sample and then run experiment
             params = {}
@@ -127,7 +127,7 @@ class Optimizer:
                 params[param] = choice
 
             loss, model = self.run_experiment(params)
-            losses.append(math.log(loss.item()))
+            losses.append(math.log(abs(loss.item()) + 1e-7))
             if loss < best[0]:
                 best = (loss, model, params)
 

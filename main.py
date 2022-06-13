@@ -14,22 +14,22 @@ data = {'data': torch.stack((torch.tensor([0, 0, 1], dtype=torch.float),
         'output': 1}
 
 example_config = {
-    'lr': {'type': 'continuous', 'max': 0.05, 'min': 0.001, 'steps': 3},
-    'optim': {'type': 'categorical', 'values': [opt.Adam, opt.SGD, opt.RMSprop]},
-    'batch_size': {'type': 'int', 'max': 4, 'min': 1, 'steps': 4},
-    'architecture': {'type': 'categorical', 'values': [[8, 4], [8, 6, 4], [16, 4, 2]]},
-    'dropout': {'type': 'continuous', 'max': 0.75, 'min': 0, 'steps': 3},
-    'activation': {'type': 'categorical', 'values': [F.relu, F.hardswish]},
+    'lr': {'type': 'continuous', 'max': 0.1, 'min': 0.001, 'steps': 5},
+    'optim': {'type': 'categorical', 'values': [opt.Adam, opt.RMSprop]},
+    'batch_size': {'type': 'int', 'max': 4, 'min': 2, 'steps': 3},
+    'architecture': {'type': 'categorical', 'values': [[10, 8, 6, 4], [8, 6, 4], [16, 4, 2], [32, 16]]},
+    'dropout': {'type': 'continuous', 'max': 0.75, 'min': 0, 'steps': 5},
+    'activation': {'type': 'categorical', 'values': [F.hardswish, torch.tanh]},
     'loss': {'type': 'categorical', 'values': [torch.nn.BCELoss]}
 }
-optimizer = Optimizer(data, example_config, 25)
+optimizer = Optimizer(data, example_config, 20)
 
 start = time.time()
 loss_gr, model_gr, params_gr = optimizer.grid_search_optimize()
 print(f'Finished grid search in {time.time() - start} seconds')
 
 start = time.time()
-loss_ra, model_ra, params_ra = optimizer.random_search_optimize(648)
+loss_ra, model_ra, params_ra = optimizer.random_search_optimize(1200)
 print(f'Finished random search in {time.time() - start} seconds')
 
 print(loss_gr, loss_ra)
