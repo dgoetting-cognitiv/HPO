@@ -1,25 +1,30 @@
+import itertools
 import math
-
-import torch.nn as nn
-import matplotlib.pyplot as plt
-from network import Network
 import random
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.nn as nn
+
+from network import Network
 
 
 class Optimizer:
 
-    def __init__(self, data, config, epochs):
+    def __init__(self, data: dict, config: dict, epochs: int):
         self.data: dict = data['data']
         self.input_dim: int = data['input']
         self.output_dim: int = data['output']
         self.config: dict = config
         self.epochs: int = epochs
+        self.num_hyperparams: int = len(config)
 
     def get_minibatch(self, size=1):
         return self.data[:size, :self.input_dim], self.data[:size, self.input_dim:]
 
     def run_experiment(self, params):
         # this part needs to be adapted to interface with Deneb
+        # this method is equivalent to exp.fit
         loss_func = params['loss']()
         optimizer = params['optim']
         lr = params['lr']
@@ -49,12 +54,58 @@ class Optimizer:
         return loss, net
 
     def grid_search_optimize(self):
-        pass
+
+        axes = []
+        for param in self.config.keys():
+            data = self.config[param]
+            if data['type'] == 'categorical':
+                axes.append(data['values'])
+            elif data['type'] == 'int':
+                axis = np.linspace(start=data['min'], stop=data['max'], num=data['steps'], dtype=int)
+                axes.append(axis)
+            elif data['type'] == 'continuous':
+                axis = np.linspace(start=data['min'], stop=data['max'], num=data['steps'])
+                axes.append(axis)
+            else:
+                raise 'Config Error'
+
+        cartesian_product = list(itertools.product(*axes))
+        print(f'Grid searching with {len(cartesian_product)} input points')
+
+        losses = []
+        best = (float('inf'), None, None)
+
+        for i, tup in enumerate(cartesian_product):
+            if i % 10 == 0:
+                print('starting trial', i)
+
+            # Configure a new set of params at each point
+            params = {}
+            for j in range(self.num_hyperparams):
+                param = list(self.config.keys())[j]
+                choice = tup[j]
+                params[param] = choice
+
+            # print(params)
+            loss, model = self.run_experiment(params)
+            losses.append(math.log(loss.item()))
+            if loss < best[0]:
+                best = (loss, model, params)
+
+        plt.figure()
+        plt.title('Grid search')
+        plt.xlabel('trial #')
+        plt.ylabel('ln of loss')
+        plt.plot(losses)
+        plt.show()
+
+        return best
 
     def random_search_optimize(self, trials):
         best = (float('inf'), None, None)
         losses = []
 
+        print(f'Random searching through {trials} input points')
         for i in range(trials):
 
             if i % 10 == 0:
@@ -63,12 +114,13 @@ class Optimizer:
             params = {}
 
             for param in self.config.keys():
-                if self.config[param]['type'] == 'categorical':
-                    choice = random.sample(self.config[param]['values'], 1)[0]
-                elif self.config[param]['type'] == 'int':
-                    choice = random.randint(self.config[param]['min'], self.config[param]['max'])
-                elif self.config[param]['type'] == 'continuous':
-                    choice = random.uniform(self.config[param]['min'], self.config[param]['max'])
+                data = self.config[param]
+                if data['type'] == 'categorical':
+                    choice = random.sample(data['values'], 1)[0]
+                elif data['type'] == 'int':
+                    choice = random.randint(data['min'], data['max'])
+                elif data['type'] == 'continuous':
+                    choice = random.uniform(data['min'], data['max'])
                 else:
                     raise 'Config Error'
 
