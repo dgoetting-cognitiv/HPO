@@ -1,13 +1,28 @@
 import torch
 import torch.nn as nn
 
+
+class Architecture:
+    def __init__(self, layers: [int]):
+        self._layers = layers
+
+    def layers(self):
+        return self._layers
+
+    def __str__(self):
+        return str(self._layers)
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class Network(nn.Module):
-    def __init__(self, activation, arch,  dropout=None, reg=None):
+    def __init__(self, activation, arch: Architecture, dropout=None, reg=None):
         super(Network, self).__init__()
         self.neurons_per_layer = None
         self.hidden_layers = None
         self.layers = []
-        self.init_layers(arch)
+        self.init_layers(arch.layers())
 
         self.activation = activation
         self.dropout = dropout
