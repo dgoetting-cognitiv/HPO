@@ -35,37 +35,40 @@ example_config = {
     'loss': {'type': 'categorical', 'values': [torch.nn.BCELoss]}
 }
 
-space = [Real(10e-5, 0.1, "log-uniform", name='lr'),
-         Categorical([opt.Adam], name='optim'),
+space = [Real(10e-4, 0.1, "log-uniform", name='lr'),
+         Categorical([opt.Adam, opt.RMSprop], name='optim'),
          Integer(1, 9, name='batch_size'),
-         Categorical([Architecture([10, 8, 6, 4]), Architecture([8, 6, 4]),
-                      Architecture([32, 16]), Architecture([12])], name='architecture'),
+         Categorical([Architecture([10, 8, 6, 4]), Architecture([8, 6, 4]), Architecture([12]),
+                      Architecture([32, 16]), Architecture([32, 16, 8, 3])], name='architecture'),
          Real(0, 0.75, name='dropout'),
-         Categorical([F.hardswish], name='activation'),
-         Categorical([torch.nn.BCELoss], name='loss')]
+         Categorical([F.hardswish, torch.tanh, torch.sigmoid, torch.relu], name='activation'),
+         Categorical([torch.nn.MSELoss], name='loss')]
 
 optimizer = Optimizer(space, data, epochs=50)
 
 
 def simple_experiment():
     start = time.time()
-    (loss_bo, model_bo, params_bo), _, best_losses_bo = optimizer.bayesian_optimize(trials=100, initial_pts=15)
+    (loss, model, params), _, _ = optimizer.bayesian_optimize(trials=100, initial_pts=15)
     print(f'Finished Bayesian search in {time.time() - start} seconds')
 
-    print(f'Optimal params \n {params_bo}')
+    print(f'Optimal params \n {params}')
 
     x, y = optimizer.get_minibatch(9)
     print(
-        f'Final validation: \ninput: {x} \noutput: {model_bo(x)} \nlabels: {y} \nloss: {loss_bo}')
+        f'Final validation: \ninput: {x} \noutput: {model(x)} \nlabels: {y} \nloss: {loss}')
 
 
 def bayes_vs_random_average():
-    NUM_EXPERIMENTS = 1
+    NUM_EXPERIMENTS = 5
     NUM_EVALUATIONS = 50
+
     results_ra = np.ndarray((NUM_EXPERIMENTS, NUM_EVALUATIONS))
+    prior_params = []
     for i in range(NUM_EXPERIMENTS):
         (_, _, p), _, bests = optimizer.random_search_optimize(NUM_EVALUATIONS)
         results_ra[i, :] = np.clip(bests, float('-inf'), 0)
+        prior_params.append(p)
 
     plt.figure()
     plt.title("Best loss over time")
@@ -77,26 +80,38 @@ def bayes_vs_random_average():
     plt.plot(mean_ra, color='blue', label='Random')
     plt.fill_between(range(NUM_EVALUATIONS), mean_ra + std_ra, mean_ra - std_ra, facecolor='blue', alpha=0.2)
 
-    print(f'random search finished with {mean_ra[-1]} \n params are {p}')
+    print(f'random search finished with {mean_ra[-1]} \nparams are {prior_params[0]}')
 
-    results_bo = np.ndarray((NUM_EXPERIMENTS, NUM_EVALUATIONS))
-    losses_bo = np.ndarray((NUM_EXPERIMENTS, NUM_EVALUATIONS))
+    # results_bo = np.ndarray((NUM_EXPERIMENTS, NUM_EVALUATIONS))
+    # for i in range(NUM_EXPERIMENTS):
+    #     (_, _, p), losses, bests = optimizer.bayesian_optimize(NUM_EVALUATIONS, 10, acq_func='PI')
+    #     results_bo[i, :] = np.clip(bests, float('-inf'), 0)
+    #
+    # mean_bo = results_bo.mean(axis=0)
+    # std_bo = results_bo.std(axis=0)
+    # plt.plot(mean_bo, color='red', label='Bayes')
+    # plt.fill_between(range(NUM_EVALUATIONS), mean_bo + std_bo, mean_bo - std_bo, facecolor='red', alpha=0.2)
+    # print(f'Bayesian search finished with {mean_bo[-1]} \n params are {prior_params[-1]}')
+
+    results_prior = np.ndarray((NUM_EXPERIMENTS, NUM_EVALUATIONS))
     for i in range(NUM_EXPERIMENTS):
-        (_, _, p), losses, bests = optimizer.bayesian_optimize(NUM_EVALUATIONS, 10)
-        results_bo[i, :] = np.clip(bests, float('-inf'), 0)
-        losses_bo[i, :] = np.clip(losses, float('-inf'), 0)
+        prior_points = [list(p.values()) for p in prior_params]
+        y_vals = [optimizer.run_experiment(p)[0].item() for p in prior_params]
 
-    mean_bo = results_bo.mean(axis=0)
-    std_bo = results_bo.std(axis=0)
-    mean_bo_inst = losses_bo.mean(axis=0)
-    plt.plot(mean_bo, color='red', label='Bayes')
-    plt.fill_between(range(NUM_EVALUATIONS), mean_bo + std_bo, mean_bo - std_bo, facecolor='red', alpha=0.2)
+        (_, _, p), losses, bests = optimizer.bayesian_optimize(NUM_EVALUATIONS, 5, x0=prior_points,
+                                                               y0=y_vals, acq_func='LCB', kappa=2)
+        results_prior[i, :] = np.clip(bests, float('-inf'), 0)
+
+    mean_pr = results_prior.mean(axis=0)
+    std_pr = results_prior.std(axis=0)
+
+    plt.plot(mean_pr, color='green', label='Bayes with priors')
+    plt.fill_between(range(NUM_EVALUATIONS), mean_pr + std_pr, mean_pr - std_pr, facecolor='green', alpha=0.2)
+
+    print(f'Bayesian search with priors finished with {mean_pr[-1]} \nparams are {p}')
     plt.legend()
-    plt.savefig(f'{NUM_EXPERIMENTS} experiments.png')
-    plt.plot(mean_bo_inst, color='green')
     plt.show()
 
-    print(f'Bayesian search finished with {mean_bo[-1]} \n params are {p}')
 
-
-simple_experiment()
+# simple_experiment()
+bayes_vs_random_average()

@@ -68,7 +68,7 @@ class Optimizer:
         # Evaluate
         x, y = self.get_minibatch(self.data.shape[0])
         pred = net(x)
-        validate_loss = nn.BCELoss()
+        validate_loss = nn.MSELoss()
         loss = validate_loss(pred, y)
 
         return loss, net
@@ -100,8 +100,8 @@ class Optimizer:
             if loss < self.best_result[0]:
                 self.best_result = (loss, model, params)
 
-            self.losses.append(math.log(loss.item() + 1e-15))
-            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15))
+            self.losses.append(math.log(loss.item() + 1e-15, 2))
+            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15, 2))
 
         return self.best_result, self.losses, self.best_losses
 
@@ -115,30 +115,32 @@ class Optimizer:
             params = self.sample_random()
 
             loss, model = self.run_experiment(params)
-            self.losses.append(math.log(loss.item() + 1e-15))
+            self.losses.append(math.log(loss.item() + 1e-15, 2))
             if loss < self.best_result[0]:
                 self.best_result = (loss, model, params)
-            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15))
+                print('found an improvement at time ', self.count)
+            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15, 2))
 
         return self.best_result, self.losses, self.best_losses
 
-    def bayesian_optimize(self, trials, initial_pts, acq_func='LCB', acq_optimizer='sampling', n_points=1000, xi=0.005,
-                          kappa=1.5):
+    def bayesian_optimize(self, trials, initial_pts, acq_func='PI', acq_optimizer='sampling', n_points=1000, xi=0.005,
+                          kappa=1.5, initial_point_generator='halton', x0=None, y0=None):
         self.reset_metrics()
-        print(f'Running bayesian search through {trials} points')
+        print(f'Running bayesian search through {trials} points {"WITH PRIORS" if x0 else ""}')
 
         @use_named_args(self.space)
         def objective(**params):
             loss, model = self.run_experiment(params)
-            self.losses.append(math.log(loss.item() + 1e-15))
+            self.losses.append(math.log(loss.item() + 1e-15, 2))
             if loss < self.best_result[0]:
                 self.best_result = (loss, model, params)
-            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15))
+                print('found an improvement at time ', self.count)
+            self.best_losses.append(math.log(self.best_result[0].item() + 1e-15, 2))
             return loss.item()
 
         gp_minimize(objective, self.space, n_calls=trials,
                     n_initial_points=initial_pts, acq_func=acq_func, acq_optimizer=acq_optimizer, n_points=n_points,
-                    xi=xi, kappa=kappa)
+                    xi=xi, kappa=kappa, initial_point_generator=initial_point_generator, x0=x0, y0=y0)
 
         return self.best_result, self.losses, self.best_losses
 
